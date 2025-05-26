@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.9/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0.95); }
+            to { transform: scale(1); }
+        }
+        .animate-scale-in {
+            animation: scaleIn 0.3s ease-out;
+        }
+        .converter-button {
+            transition: transform 0.2s, background-color 0.3s;
+        }
+        .converter-button:hover {
+            transform: scale(1.05);
+        }
+        .dark {
+            background-color: #1a202c;
+            color: #ffffff;
+        }
+        .dark input,
+        .dark select,
+        .dark textarea {
+            background-color: #2d3748;
+            color: #ffffff;
+            border-color: #4a5568;
+        }
+        .dark .bg-gray-50 {
+            background-color: #2d3748;
+        }
+        .dark .bg-gray-100 {
+            background-color: #2d3748;
+        }
+        .dark .bg-white {
+            background-color: #2d3748;
+        }
+        .dark .text-gray-500 {
+            color: #e2e8f0;
+        }
+        .dark .border-gray-200 {
+            border-color: #4a5568;
+        }
+        .dark .bg-gray-200 {
+            background-color: #4a5568;
+        }
+        @keyframes fall {
+            0% {
+                transform: translateY(-100px) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        .money-icon {
+            position: fixed;
+            top: -50px;
+            font-size: 1.5rem;
+            animation: fall 3s linear forwards;
+            pointer-events: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const currencySymbols = {
+            'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'INR': '₹', 'CAD': '$', 'AUD': '$'
+        };
+
+        const defaultConversionRates = {
+            'USD': { 'EUR': 0.93, 'GBP': 0.79, 'JPY': 152.00, 'INR': 84.20, 'CAD': 1.39, 'AUD': 1.52, 'USD': 1 },
+            'EUR': { 'USD': 1.08, 'GBP': 0.85, 'JPY': 163.50, 'INR': 90.50, 'CAD': 1.50, 'AUD': 1.64, 'EUR': 1 },
+            'GBP': { 'USD': 1.27, 'EUR': 1.18, 'JPY': 193.00, 'INR': 106.80, 'CAD': 1.76, 'AUD': 1.93, 'GBP': 1 },
+            'JPY': { 'USD': 0.0066, 'EUR': 0.0061, 'GBP': 0.0052, 'INR': 0.55, 'CAD': 0.0091, 'AUD': 0.010, 'JPY': 1 },
+            'INR': { 'USD': 0.0119, 'EUR': 0.0110, 'GBP': 0.0094, 'JPY': 1.80, 'CAD': 0.0165, 'AUD': 0.0180, 'INR': 1 },
+            'CAD': { 'USD': 0.72, 'EUR': 0.67, 'GBP': 0.57, 'JPY': 109.50, 'INR': 60.60, 'AUD': 1.09, 'CAD': 1 },
+            'AUD': { 'USD': 0.66, 'EUR': 0.61, 'GBP': 0.52, 'JPY': 100.00, 'INR': 55.40, 'CAD': 0.92, 'AUD': 1 }
+        };
+
+        const categoryIcons = {
+            'food': '🍔', 'transportation': '🚗', 'housing': '🏠', 'entertainment': '🎬',
+            'shopping': '🛍️', 'health': '💊', 'travel': '✈️', 'education': '📚',
+            'personal': '💇', 'bills': '📄', 'salary': '💰', 'gifts': '🎁',
+            'investments': '📈', 'other': '📌'
+        };
+
+        const categoryColors = {
+            'food': '#ff6b6b', 'transportation': '#4ecdc4', 'housing': '#45b7d1',
+            'entertainment': '#96c93d', 'shopping': '#ffcc5c', 'health': '#ff9f43',
+            'travel': '#6c5ce7', 'education': '#a29bfe', 'personal': '#74b9ff',
+            'bills': '#e17055', 'salary': '#00b894', 'gifts': '#d63031',
+            'investments': '#0984e3', 'other': '#b2bec3'
+        };
+
+        function DropMoney({ isActive, onComplete }) {
+            const [moneyIcons, setMoneyIcons] = useState([]);
+
+            useEffect(() => {
+                if (!isActive) {
+                    setMoneyIcons([]);
+                    return;
+                }
+
+                const icons = ['💵', '💰', '🪙'];
+                const createMoneyIcon = () => {
+                    const id = Math.random().toString(36).substr(2, 9);
+                    const icon = icons[Math.floor(Math.random() * icons.length)];
+                    const left = Math.random() * window.innerWidth;
+                    const animationDuration = 2 + Math.random() * 2; // 2-4 seconds
+                    return { id, icon, left, duration: animationDuration };
+                };
+
+                const addIcons = () => {
+                    const newIcons = Array.from({ length: 5 }, createMoneyIcon);
+                    setMoneyIcons(prev => [...prev, ...newIcons]);
+                };
+
+                addIcons();
+                const interval = setInterval(addIcons, 500);
+
+                const timeout = setTimeout(() => {
+                    clearInterval(interval);
+                    setMoneyIcons([]);
+                    if (onComplete) onComplete();
+                }, 5000); // Stop after 5 seconds
+
+                return () => {
+                    clearInterval(interval);
+                    clearTimeout(timeout);
+                };
+            }, [isActive, onComplete]);
+
+            return (
+                <>
+                    {moneyIcons.map(icon => (
+                        <div
+                            key={icon.id}
+                            className="money-icon"
+                            style={{
+                                left: `${icon.left}px`,
+                                animationDuration: `${icon.duration}s`
+                            }}
+                        >
+                            {icon.icon}
+                        </div>
+                    ))}
+                </>
+            );
+        }
+
+        function App() {
+            const currentUser = localStorage.getItem('currentUser');
+            const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('isLoggedIn') === 'true' && currentUser);
+            const [transactions, setTransactions] = useState(JSON.parse(localStorage.getItem(`transactions_${currentUser}`)) || []);
+            const [settings, setSettings] = useState(JSON.parse(localStorage.getItem(`settings_${currentUser}`)) || {
+                currency: 'USD',
+                theme: 'light',
+                budget: 0,
+                customRates: defaultConversionRates
+            });
+            const [activeTab, setActiveTab] = useState('transactions');
+            const [isDarkMode, setIsDarkMode] = useState(settings.theme === 'dark');
+            const [notification, setNotification] = useState(null);
+            const [isDroppingMoney, setIsDroppingMoney] = useState(false);
+
+            useEffect(() => {
+                if (!isLoggedIn) {
+                    window.location.href = 'auth.html';
+                }
+                document.body.classList.toggle('dark', isDarkMode);
+
+                const today = new Date();
+                const todayExpenses = transactions
+                    .filter(t => t.type === 'expense' && new Date(t.date).toDateString() === today.toDateString())
+                    .reduce((sum, t) => sum + t.amount, 0);
+
+                if (todayExpenses > 0) {
+                    setNotification({
+                        message: `You've spent ${formatCurrency(todayExpenses)} today!`,
+                        type: 'info'
+                    });
+                } else {
+                    setNotification({
+                        message: "No expenses recorded for today. Add your daily expenses!",
+                        type: 'warning'
+                    });
+                }
+
+                if (today.getDate() === 1) {
+                    const hasRent = transactions.some(t => 
+                        t.category === 'housing' && 
+                        new Date(t.date).getMonth() === today.getMonth() &&
+                        new Date(t.date).getFullYear() === today.getFullYear()
+                    );
+                    if (!hasRent) {
+                        setTimeout(() => {
+                            setNotification({
+                                message: "Reminder: Add your home rent for this month!",
+                                type: 'warning'
+                            });
+                        }, 2000);
+                    }
+
+                    setTimeout(() => {
+                        setNotification({
+                            message: "Don't forget to add monthly expenses like subscriptions!",
+                            type: 'info'
+                        });
+                    }, 4000);
+                }
+
+                const handleNotification = (e) => {
+                    setNotification(e.detail);
+                };
+                window.addEventListener('setNotification', handleNotification);
+                return () => window.removeEventListener('setNotification', handleNotification);
+            }, [isLoggedIn, isDarkMode, transactions]);
+
+            const saveTransactions = (newTransactions) => {
+                setTransactions(newTransactions);
+                localStorage.setItem(`transactions_${currentUser}`, JSON.stringify(newTransactions));
+            };
+
+            const saveSettings = (newSettings) => {
+                setSettings(newSettings);
+                localStorage.setItem(`settings_${currentUser}`, JSON.stringify(newSettings));
+            };
+
+            const toggleTheme = () => {
+                const newTheme = isDarkMode ? 'light' : 'dark';
+                setIsDarkMode(!isDarkMode);
+                saveSettings({ ...settings, theme: newTheme });
+            };
+
+            const logout = () => {
+                if (window.confirm('Are you sure you want to log out?')) {
+                    localStorage.removeItem('isLoggedIn');
+                    localStorage.removeItem('currentUser');
+                    setIsLoggedIn(false);
+                    window.location.href = 'auth.html';
+                }
+            };
+
+            const formatCurrency = (amount) => {
+                return `${currencySymbols[settings.currency] || '$'}${amount.toFixed(2)}`;
+            };
+
+            const formatDate = (dateString) => {
+                return new Date(dateString).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            };
+
+            const handleDropMoney = () => {
+                if (!isDroppingMoney) {
+                    setIsDroppingMoney(true);
+                    setNotification({
+                        message: "Dropping some cash! 💸",
+                        type: 'info'
+                    });
+                }
+            };
+
+            const username = currentUser ? currentUser.split('@')[0] : 'User';
+
+            return (
+                <div className={`min-h-screen ${isDarkMode ? 'dark bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                    <DropMoney
+                        isActive={isDroppingMoney}
+                        onComplete={() => setIsDroppingMoney(false)}
+                    />
+                    {notification && (
+                        <div
+                            className={`fixed bottom-4 right-4 px-6 py-3 rounded-md shadow-lg text-white transition-opacity duration-500 z-50 ${
+                                notification.type === 'info' ? 'bg-indigo-600' : notification.type === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                            }`}
+                            role="alert"
+                        >
+                            {notification.message}
+                            <button
+                                onClick={() => setNotification(null)}
+                                className="ml-4 text-white font-bold"
+                                aria-label="Close notification"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    )}
+
+                    <header className="bg-indigo-600 dark:bg-indigo-800 text-white py-4 shadow-md">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                            <h1 className="text-2xl font-bold flex items-center gap-2">
+                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                                    <line x1="2" y1="10" x2="22" y2="10" />
+                                </svg>
+                                Expense Tracker
+                            </h1>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={handleDropMoney}
+                                    className={`bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded-md transition-colors duration-200 flex items-center gap-2 ${
+                                        isDroppingMoney ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                    disabled={isDroppingMoney}
+                                    aria-label="Drop money animation"
+                                >
+                                    <span>💸 Drop Money</span>
+                                </button>
+                                <span className="text-lg">Welcome, {username}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="dark:text-white">Dark Mode</span>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={isDarkMode}
+                                            onChange={toggleTheme}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:bg-indigo-600 transition-colors duration-300">
+                                            <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${isDarkMode ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <button
+                                    onClick={logout}
+                                    className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-md transition-colors duration-200"
+                                >
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <div className="grid lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-1 space-y-6">
+                                <TransactionForm
+                                    transactions={transactions}
+                                    saveTransactions={saveTransactions}
+                                    formatCurrency={formatCurrency}
+                                />
+                                <Settings
+                                    settings={settings}
+                                    saveSettings={saveSettings}
+                                    transactions={transactions}
+                                    formatCurrency={formatCurrency}
+                                    saveTransactions={saveTransactions}
+                                />
+                            </div>
+                            <div className="lg:col-span-2 space-y-6">
+                                <BalanceSummary
+                                    transactions={transactions}
+                                    formatCurrency={formatCurrency}
+                                />
+                                <Tabs
+                                    activeTab={activeTab}
+                                    setActiveTab={setActiveTab}
+                                    transactions={transactions}
+                                    saveTransactions={saveTransactions}
+                                    settings={settings}
+                                    formatCurrency={formatCurrency}
+                                    formatDate={formatDate}
+                                />
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        function TransactionForm({ transactions, saveTransactions, formatCurrency }) {
+            const initialFormState = {
+                id: null,
+                name: '',
+                amount: '',
+                type: 'expense',
+                category: '',
+                date: new Date().toISOString().split('T')[0],
+                notes: ''
+            };
+
+            const [formData, setFormData] = useState(initialFormState);
+            const [isEditing, setIsEditing] = useState(false);
+
+            const handleChange = (e) => {
+                setFormData({ ...formData, [e.target.name]: e.target.value });
+            };
+
+            const resetForm = () => {
+                setFormData(initialFormState);
+                setIsEditing(false);
+                document.getElementById('transaction-form').reset();
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const amount = parseFloat(formData.amount);
+                if (isNaN(amount) || amount <= 0) {
+                    alert('Please enter a valid amount greater than 0');
+                    return;
+                }
+
+                const transaction = {
+                    ...formData,
+                    amount: amount,
+                    date: new Date(formData.date).toISOString(),
+                    created: new Date().toISOString()
+                };
+
+                if (isEditing) {
+                    const updatedTransactions = transactions.map(t =>
+                        t.id === formData.id ? { ...transaction, modified: new Date().toISOString() } : t
+                    );
+                    saveTransactions(updatedTransactions);
+                    setIsEditing(false);
+                } else {
+                    transaction.id = Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+                    saveTransactions([transaction, ...transactions]);
+                }
+
+                resetForm();
+            };
+
+            useEffect(() => {
+                const handleEdit = (e) => {
+                    const transaction = e.detail;
+                    const transactionDate = new Date(transaction.date);
+                    const formattedDate = transactionDate.toISOString().split('T')[0];
+
+                    setFormData({
+                        id: transaction.id,
+                        name: transaction.name || '',
+                        amount: transaction.amount.toString() || '',
+                        type: transaction.type || 'expense',
+                        category: transaction.category || '',
+                        date: formattedDate,
+                        notes: transaction.notes || ''
+                    });
+                    setIsEditing(true);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+                window.addEventListener('editTransaction', handleEdit);
+                return () => window.removeEventListener('editTransaction', handleEdit);
+            }, []);
+
+            return (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                    <h2 className="text-xl font-semibold mb-4 text-indigo-600 dark:text-indigo-400">
+                        {isEditing ? 'Edit Transaction' : 'Add Transaction'}
+                    </h2>
+                    <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1 dark:text-white">Description</label>
+                            <input
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                placeholder="What did you spend on?"
+                                required
+                                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 dark:text-white">Amount</label>
+                            <input
+                                type="number"
+                                name="amount"
+                                value={formData.amount}
+                                onChange={handleChange}
+                                min="0.01"
+                                step="0.01"
+                                placeholder="0.00"
+                                required
+                                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 dark:text-white">Type</label>
+                            <select
+                                name="type"
+                                value={formData.type}
+                                onChange={handleChange}
+                                required
+                                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                                <option value="expense">Expense</option>
+                                <option value="income">Income</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 dark:text-white">Category</label>
+                            <select
+                                name="category"
+                                value={formData.category}
+                                onChange={handleChange}
+                                required
+                                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                                <option value="">Select Category</option>
+                                {Object.keys(categoryIcons).map(cat => (
+                                    <option key={cat} value={cat}>{categoryIcons[cat]} {cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 dark:text-white">Date</label>
+                            <input
+                                type="date"
+                                name="date"
+                                value={formData.date}
+                                onChange={handleChange}
+                                required
+                                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 dark:text-white">Notes (Optional)</label>
+                            <textarea
+                                name="notes"
+                                value={formData.notes}
+                                onChange={handleChange}
+                                rows="3"
+                                placeholder="Add any additional details..."
+                                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-md transition-colors duration-200"
+                        >
+                            {isEditing ? 'Save Changes' : 'Add Transaction'}
+                        </button>
+                        {isEditing && (
+                            <button
+                                type="button"
+                                onClick={resetForm}
+                                className="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-md mt-2 transition-colors duration-200"
+                            >
+                                Cancel
+                            </button>
+                        )}
+                    </form>
+                </div>
+            );
+        }
+
+        function Settings({ settings, saveSettings, transactions, formatCurrency, saveTransactions }) {
+            const [currency, setCurrency] = useState(settings.currency);
+            const [budget, setBudget] = useState(settings.budget || 0);
+            const [convertFromCurrency, setConvertFromCurrency] = useState(settings.currency);
+            const [convertToCurrency, setConvertToCurrency] = useState('EUR');
+            const [convertAmount, setConvertAmount] = useState('');
+            const [convertedValue, setConvertedValue] = useState(null);
+            const [customRates, setCustomRates] = useState(settings.customRates || defaultConversionRates);
+            const [showCustomRates, setShowCustomRates] = useState(false);
+            const [conversionHistory, setConversionHistory] = useState(JSON.parse(localStorage.getItem(`conversionHistory_${localStorage.getItem('currentUser')}`)) || []);
+            const [showHistory, setShowHistory] = useState(false);
+            const [autoUpdate, setAutoUpdate] = useState(false);
+            const [isLoadingRates, setIsLoadingRates] = useState(false);
+
+            const API_KEY = 'YOUR_EXCHANGERATE_API_KEY';
+
+            const setNotification = (notification) => {
+                window.dispatchEvent(new CustomEvent('setNotification', { detail: notification }));
+            };
+
+            const fetchLiveRates = async (baseCurrency) => {
+                if (API_KEY === 'YOUR_EXCHANGERATE_API_KEY') {
+                    setNotification({
+                        message: 'Please configure a valid ExchangeRate API key in the code.',
+                        type: 'error'
+                    });
+                    return;
+                }
+                setIsLoadingRates(true);
+                try {
+                    const response = await axios.get(`https://v6.exchangerate-api.com/v6/${API_KEY}/latest/${baseCurrency}`);
+                    const rates = response.data.conversion_rates;
+                    const filteredRates = Object.fromEntries(
+                        Object.keys(currencySymbols).map(toCurr => [toCurr, rates[toCurr] || defaultConversionRates[baseCurrency][toCurr]])
+                    );
+                    filteredRates[baseCurrency] = 1;
+                    const newRates = { ...customRates, [baseCurrency]: filteredRates };
+                    setCustomRates(newRates);
+                    saveSettings({ ...settings, customRates: newRates });
+                    setNotification({
+                        message: `Exchange rates for ${baseCurrency} updated successfully.`,
+                        type: 'info'
+                    });
+                } catch (error) {
+                    setNotification({
+                        message: 'Failed to fetch live rates. Using default rates.',
+                        type: 'warning'
+                    });
+                } finally {
+                    setIsLoadingRates(false);
+                }
+            };
+
+            useEffect(() => {
+                let interval;
+                if (autoUpdate && API_KEY !== 'YOUR_EXCHANGERATE_API_KEY') {
+                    fetchLiveRates(currency);
+                    interval = setInterval(() => fetchLiveRates(currency), 24 * 60 * 60 * 1000);
+                }
+                return () => clearInterval(interval);
+            }, [autoUpdate, currency]);
+
+            useEffect(() => {
+                localStorage.setItem(`conversionHistory_${localStorage.getItem('currentUser')}`, JSON.stringify(conversionHistory));
+            }, [conversionHistory]);
+
+            const handleCurrencyChange = (e) => {
+                const newCurrency = e.target.value;
+                const oldCurrency = currency;
+
+                const updatedTransactions = transactions.map(transaction => {
+                    if (oldCurrency === newCurrency) return transaction;
+                    const conversionRate = customRates[oldCurrency][newCurrency] || defaultConversionRates[oldCurrency][newCurrency];
+                    const convertedAmount = parseFloat((transaction.amount * conversionRate).toFixed(2));
+                    return {
+                        ...transaction,
+                        amount: convertedAmount,
+                        modified: new Date().toISOString()
+                    };
+                });
+
+                saveTransactions(updatedTransactions);
+                setCurrency(newCurrency);
+                setConvertFromCurrency(newCurrency);
+                saveSettings({ ...settings, currency: newCurrency, customRates });
+
+                if (API_KEY !== 'YOUR_EXCHANGERATE_API_KEY') {
+                    fetchLiveRates(newCurrency);
+                }
+
+                setNotification({
+                    message: `Currency changed to ${newCurrency}. All transactions converted from ${oldCurrency}.`,
+                    type: 'info'
+                });
+            };
+
+            const handleBudgetChange = (e) => {
+                setBudget(e.target.value);
+            };
+
+            const saveBudget = () => {
+                const budgetValue = parseFloat(budget) || 0;
+                if (budgetValue < 0) {
+                    setNotification({
+                        message: 'Budget cannot be negative.',
+                        type: 'error'
+                    });
+                    return;
+                }
+                saveSettings({ ...settings, budget: budgetValue, customRates });
+                setNotification({
+                    message: 'Budget updated successfully.',
+                    type: 'info'
+                });
+            };
+
+            const handleConvertFromCurrencyChange = (e) => {
+                setConvertFromCurrency(e.target.value);
+                setConvertedValue(null);
+            };
+
+            const handleConvertToCurrencyChange = (e) => {
+                setConvertToCurrency(e.target.value);
+                setConvertedValue(null);
+            };
+
+            const handleConvertAmountChange = (e) => {
+                const amount = e.target.value;
+                setConvertAmount(amount);
+                if (amount && !isNaN(amount) && convertFromCurrency !== convertToCurrency) {
+                    const rate = customRates[convertFromCurrency][convertToCurrency];
+                    const converted = (parseFloat(amount) * rate).toFixed(2);
+                    setConvertedValue(converted);
+                    const historyEntry = {
+                        id: Date.now(),
+                        amount: parseFloat(amount),
+                        fromCurrency: convertFromCurrency,
+                        toCurrency: convertToCurrency,
+                        converted: converted,
+                        timestamp: new Date().toISOString()
+                    };
+                    setConversionHistory([historyEntry, ...conversionHistory.slice(0, 9)]);
+                } else {
+                    setConvertedValue(null);
+                }
+            };
+
+            const handleRateChange = (fromCurrency, toCurrency, value) => {
+                const newRates = { ...customRates };
+                const rateValue = parseFloat(value);
+                if (isNaN(rateValue) || rateValue <= 0) {
+                    setNotification({
+                        message: 'Exchange rate must be a positive number.',
+                        type: 'error'
+                    });
+                    return;
+                }
+                newRates[fromCurrency][toCurrency] = rateValue;
+                setCustomRates(newRates);
+                saveSettings({ ...settings, customRates: newRates });
+                if (convertFromCurrency === fromCurrency && convertToCurrency === toCurrency && convertAmount) {
+                    setConvertedValue((parseFloat(convertAmount) * newRates[fromCurrency][toCurrency]).toFixed(2));
+                }
+            };
+
+            const resetRates = () => {
+                setCustomRates(defaultConversionRates);
+                saveSettings({ ...settings, customRates: defaultConversionRates });
+                setConvertedValue(null);
+                setNotification({
+                    message: 'Exchange rates reset to default.',
+                    type: 'info'
+                });
+            };
+
+            const exportDataToPDF = () => {
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF({
+                        orientation: 'portrait',
+                        unit: 'mm',
+                        format: 'a4'
+                    });
+
+                    if (!doc.autoTable) {
+                        throw new Error("autoTable plugin is not loaded correctly.");
+                    }
+
+                    const income = transactions
+                        .filter(t => t.type === 'income')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                    const expense = transactions
+                        .filter(t => t.type === 'expense')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                    const balance = income - expense;
+
+                    doc.setFontSize(20);
+                    doc.setTextColor(108, 92, 231);
+                    doc.text('Expense Tracker Report', 15, 20);
+
+                    doc.setFontSize(12);
+                    doc.setTextColor(45, 52, 54);
+                    const summaryData = [
+                        ['Export Date:', new Date().toLocaleDateString()],
+                        ['Currency:', settings.currency],
+                        ['Monthly Budget:', formatCurrency(settings.budget)],
+                        ['Total Income:', formatCurrency(income)],
+                        ['Total Expenses:', formatCurrency(expense)],
+                        ['Balance:', formatCurrency(balance)]
+                    ];
+
+                    let yPos = 30;
+                    summaryData.forEach(([label, value]) => {
+                        doc.setFont('helvetica', 'bold');
+                        doc.text(label, 15, yPos);
+                        doc.setFont('helvetica', 'normal');
+                        doc.text(value.toString(), 50, yPos);
+                        yPos += 7;
+                    });
+
+                    const headers = [['Date', 'Type', 'Category', 'Description', 'Amount', 'Notes']];
+                    const transactionRows = transactions.map(t => {
+                        const categoryDisplay = (categoryIcons[t.category] || '📌') + ' ' + (t.category.charAt(0).toUpperCase() + t.category.slice(1));
+                        return [
+                            new Date(t.date).toLocaleDateString(),
+                            t.type.charAt(0).toUpperCase() + t.type.slice(1),
+                            categoryDisplay,
+                            t.name || '-',
+                            formatCurrency(t.amount),
+                            t.notes || '-'
+                        ];
+                    });
+
+                    if (!Array.isArray(transactionRows) || transactionRows.some(row => !Array.isArray(row))) {
+                        throw new Error("Invalid transaction data format for PDF table.");
+                    }
+
+                    doc.autoTable({
+                        head: headers,
+                        body: transactionRows,
+                        startY: yPos + 10,
+                        theme: 'grid',
+                        styles: {
+                            fontSize: 9,
+                            cellPadding: 2,
+                            overflow: 'linebreak',
+                            minCellHeight: 5,
+                            halign: 'left',
+                            valign: 'middle'
+                        },
+                        headStyles: {
+                            fillColor: [108, 92, 231],
+                            textColor: [255, 255, 255],
+                            fontSize: 10,
+                            halign: 'center'
+                        },
+                        columnStyles: {
+                            0: { cellWidth: 25 },
+                            1: { cellWidth: 20 },
+                            2: { cellWidth: 30 },
+                            3: { cellWidth: 45 },
+                            4: { cellWidth: 25 },
+                            5: { cellWidth: 45 }
+                        },
+                        margin: { top: 10, left: 15, right: 15 },
+                        didDrawPage: (data) => {
+                            const pageCount = doc.internal.getNumberOfPages();
+                            const pageNumber = data.pageNumber;
+                            doc.setFontSize(8);
+                            doc.setTextColor(100);
+                            doc.text(`Page ${pageNumber} of ${pageCount}`, 180, 287);
+                        }
+                    });
+
+                    const fileName = `expense-tracker-report-${new Date().toISOString().split('T')[0]}.pdf`;
+                    doc.save(fileName);
+
+                    setNotification({
+                        message: 'Data exported to PDF successfully!',
+                        type: 'info'
+                    });
+                } catch (error) {
+                    console.error('Error generating PDF:', error.message, error.stack);
+                    setNotification({
+                        message: 'Failed to export data to PDF: ' + error.message,
+                        type: 'error'
+                    });
+                }
+            };
+
+            const clearAllData = () => {
+                if (window.confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
+                    saveTransactions([]);
+                    saveSettings({ currency: 'USD', theme: settings.theme, budget: 0, customRates: defaultConversionRates });
+                    setBudget(0);
+                    setCurrency('USD');
+                    setConvertAmount('');
+                    setConvertedValue(null);
+                    setCustomRates(defaultConversionRates);
+                    setConversionHistory([]);
+                    setNotification({
+                        message: 'All data cleared successfully.',
+                        type: 'info'
+                    });
+                }
+            };
+
+            return (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                    <h2 className="text-xl font-semibold mb-4 text-indigo-600 dark:text-indigo-400">Settings</h2>
+                    <div className="space-y-6">
+                        <div>
+                            <label htmlFor="currency" className="block text-sm font-medium mb-1 dark:text-white">Currency</label>
+                            <select
+                                id="currency"
+                                value={currency}
+                                onChange={handleCurrencyChange}
+                                className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                                aria-label="Select currency"
+                            >
+                                {Object.keys(currencySymbols).map(curr => (
+                                    <option key={curr} value={curr}>
+                                        {curr} ({currencySymbols[curr]})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="budget" className="block text-sm font-medium mb-1 dark:text-white">Monthly Budget</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="number"
+                                    id="budget"
+                                    value={budget}
+                                    onChange={handleBudgetChange}
+                                    placeholder="Enter amount"
+                                    min="0"
+                                    className="flex-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                                    aria-label="Set monthly budget"
+                                />
+                                <button
+                                    onClick={saveBudget}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md transition-colors duration-200 converter-button"
+                                    aria-label="Save budget"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                        <div className="animate-fade-in">
+                            <h3 className="text-lg font-semibold mb-2 dark:text-white">Currency Converter</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-300 mb-4">
+                                Convert amounts using live or custom rates. Rates updated May 2025 or via API.
+                            </p>
+                            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm space-y-4 animate-scale-in">
+                                <div className="flex items-center gap-2">
+                                    <label htmlFor="auto-update" className="dark:text-white text-sm font-medium">Auto-update rates daily</label>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            id="auto-update"
+                                            checked={autoUpdate}
+                                            onChange={() => setAutoUpdate(!autoUpdate)}
+                                            className="sr-only peer"
+                                            aria-label="Toggle auto-update rates"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-600 peer-checked:bg-indigo-600 transition-colors duration-300">
+                                            <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${autoUpdate ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                        </div>
+                                    </label>
+                                    {isLoadingRates && <span className="text-sm dark:text-white animate-pulse">Updating rates...</span>}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label htmlFor="from-currency" className="block text-sm font-medium mb-1 dark:text-white">From Currency</label>
+                                        <select
+                                            id="from-currency"
+                                            value={convertFromCurrency}
+                                            onChange={handleConvertFromCurrencyChange}
+                                            className="w-full p-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                                            aria-label="Select source currency"
+                                        >
+                                            {Object.keys(currencySymbols).map(curr => (
+                                                <option key={curr} value={curr}>
+                                                    {curr} ({currencySymbols[curr]})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="to-currency" className="block text-sm font-medium mb-1 dark:text-white">To Currency</label>
+                                        <select
+                                            id="to-currency"
+                                            value={convertToCurrency}
+                                            onChange={handleConvertToCurrencyChange}
+                                            className="w-full p-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                                            aria-label="Select target currency"
+                                        >
+                                            {Object.keys(currencySymbols).map(curr => (
+                                                <option key={curr} value={curr}>
+                                                    {curr} ({currencySymbols[curr]})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="convert-amount" className="block text-sm font-medium mb-1 dark:text-white">Amount</label>
+                                        <input
+                                            type="number"
+                                            id="convert-amount"
+                                            value={convertAmount}
+                                            onChange={handleConvertAmountChange}
+                                            placeholder="Enter amount"
+                                            min="0"
+                                            className="w-full p-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                                            aria-label="Enter amount to convert"
+                                        />
+                                    </div>
+                                </div>
+                                {convertedValue && (
+                                    <div className="bg-indigo-50 dark:bg-indigo-900 p-3 rounded-md text-center animate-fade-in">
+                                        <p className="text-lg font-semibold dark:text-white">
+                                            {convertAmount} {convertFromCurrency} ={' '}
+                                            <span className="text-indigo-600 dark:text-indigo-400">
+                                                {currencySymbols[convertToCurrency]}{convertedValue}
+                                            </span>
+                                        </p>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => fetchLiveRates(convertFromCurrency)}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-md transition-colors duration-200 converter-button"
+                                    aria-label="Refresh live exchange rates"
+                                >
+                                    Refresh Live Rates
+                                </button>
+                                <button
+                                    onClick={() => setShowCustomRates(!showCustomRates)}
+                                    className="w-full text-indigo-600 dark:text-indigo-400 hover:underline py-2 transition-colors duration-200"
+                                    aria-label={showCustomRates ? 'Hide custom rates' : 'Show custom rates'}
+                                >
+                                    {showCustomRates ? 'Hide Custom Rates' : 'Adjust Custom Rates'}
+                                </button>
+                                {showCustomRates && (
+                                    <div className="space-y-4 mt-4 animate-fade-in">
+                                        {Object.keys(currencySymbols).map(fromCurrency => (
+                                            <div key={fromCurrency} className="bg-gray-100 dark:bg-gray-600 p-3 rounded-md">
+                                                <h4 className="text-sm font-medium dark:text-white mb-2">{fromCurrency} to Others</h4>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {Object.keys(currencySymbols).map(toCurrency => (
+                                                        fromCurrency !== toCurrency && (
+                                                            <div key={toCurrency} className="flex items-center gap-2">
+                                                                <label className="text-sm dark:text-white flex-1">
+                                                                    1 {fromCurrency} = {toCurrency}
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={customRates[fromCurrency][toCurrency]}
+                                                                    onChange={(e) => handleRateChange(fromCurrency, toCurrency, e.target.value)}
+                                                                    className="p-1 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white w-24 focus:ring-2 focus:ring-indigo-500"
+                                                                    aria-label={`Set exchange rate from ${fromCurrency} to ${toCurrency}`}
+                                                                />
+                                                            </div>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={resetRates}
+                                            className="w-full text-red-600 dark:text-red-400 hover:underline py-2 transition-colors duration-200"
+                                            aria-label="Reset to default rates"
+                                        >
+                                            Reset to Default Rates
+                                        </button>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => setShowHistory(!showHistory)}
+                                    className="w-full text-indigo-600 dark:text-indigo-400 hover:underline py-2 transition-colors duration-200"
+                                    aria-label={showHistory ? 'Hide conversion history' : 'Show conversion history'}
+                                >
+                                    {showHistory ? 'Hide Conversion History' : 'View Conversion History'}
+                                </button>
+                                {showHistory && (
+                                    <div className="space-y-2 mt-4 animate-fade-in">
+                                        {conversionHistory.length > 0 ? (
+                                            conversionHistory.map(entry => (
+                                                <div key={entry.id} className="bg-gray-100 dark:bg-gray-600 p-3 rounded-md">
+                                                    <p className="text-sm dark:text-white">
+                                                        {entry.amount} {entry.fromCurrency} = {currencySymbols[entry.toCurrency]}{entry.converted} {entry.toCurrency}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-300">
+                                                        {new Date(entry.timestamp).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-gray-500 dark:text-gray-300">No conversion history available.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={exportDataToPDF}
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-md transition-colors duration-200 converter-button"
+                                aria-label="Export data to PDF"
+                            >
+                                Export Data
+                            </button>
+                            <button
+                                onClick={clearAllData}
+                                className="flex-1 bg-red-600 hover:bg-red-600 text-white py-2 rounded-md transition-colors duration-200 converter-button"
+                                aria-label="Clear all data"
+                            >
+                                Clear All Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function BalanceSummary({ transactions, formatCurrency }) {
+            const income = transactions
+                .filter(t => t.type === 'income')
+                .reduce((sum, t) => sum + t.amount, 0);
+            const expense = transactions
+                .filter(t => t.type === 'expense')
+                .reduce((sum, t) => sum + t.amount, 0);
+            const balance = income - expense;
+
+            return (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-indigo-600 dark:bg-indigo-800 text-white p-4 rounded-lg shadow-md text-center">
+                        <h3 className="text-lg font-semibold">Total Balance</h3>
+                        <p className={`text-2xl font-bold mt-2 ${balance >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                            {formatCurrency(balance)}
+                        </p>
+                    </div>
+                    <div className="bg-green-600 dark:bg-green-800 text-white p-4 rounded-lg shadow-md text-center">
+                        <h3 className="text-lg font-semibold">Income</h3>
+                        <p className="text-2xl font-bold mt-2">{formatCurrency(income)}</p>
+                    </div>
+                    <div className="bg-red-600 dark:bg-red-800 text-white p-4 rounded-lg shadow-md text-center">
+                        <h3 className="text-lg font-semibold">Expenses</h3>
+                        <p className="text-2xl font-bold mt-2">{formatCurrency(expense)}</p>
+                    </div>
+                </div>
+            );
+        }
+
+        function Tabs({ activeTab, setActiveTab, transactions, saveTransactions, settings, formatCurrency, formatDate }) {
+            return (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                    <div className="border-b dark:border-gray-700">
+                        <div className="flex">
+                            <button
+                                onClick={() => setActiveTab('transactions')}
+                                className={`px-4 py-2 font-semibold border-b-2 transition-colors duration-200 ${
+                                    activeTab === 'transactions'
+                                        ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                                        : 'border-transparent text-gray-600 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400'
+                                }`}
+                            >
+                                Transactions
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('analytics')}
+                                className={`px-4 py-2 font-semibold border-b-2 transition-colors duration-200 ${
+                                    activeTab === 'analytics'
+                                        ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                                        : 'border-transparent text-gray-600 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400'
+                                }`}
+                            >
+                                Analytics
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('budget')}
+                                className={`px-4 py-2 font-semibold border-b-2 transition-colors duration-200 ${
+                                    activeTab === 'budget'
+                                        ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                                        : 'border-transparent text-gray-600 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400'
+                                }`}
+                            >
+                                Budget
+                            </button>
+                        </div>
+                    </div>
+                    <div className="p-6">
+                        {activeTab === 'transactions' && (
+                            <TransactionsTab
+                                transactions={transactions}
+                                saveTransactions={saveTransactions}
+                                formatCurrency={formatCurrency}
+                                formatDate={formatDate}
+                            />
+                        )}
+                        {activeTab === 'analytics' && (
+                            <AnalyticsTab
+                                transactions={transactions}
+                                settings={settings}
+                                formatCurrency={formatCurrency}
+                                formatDate={formatDate}
+                            />
+                        )}
+                        {activeTab === 'budget' && (
+                            <BudgetTab
+                                transactions={transactions}
+                                settings={settings}
+                                formatCurrency={formatCurrency}
+                            />
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function TransactionsTab({ transactions, saveTransactions, formatCurrency, formatDate }) {
+            const [filters, setFilters] = useState({
+                search: '',
+                type: 'all',
+                category: 'all',
+                date: 'all'
+            });
+
+            const handleFilterChange = (e) => {
+                setFilters({ ...filters, [e.target.name]: e.target.value });
+            };
+
+            const isSameDay = (date1, date2) => {
+                return date1.toDateString() === date2.toDateString();
+            };
+
+            const isInCurrentWeek = (date) => {
+                const today = new Date();
+                const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+                const lastDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+                return date >= firstDayOfWeek && date <= lastDayOfWeek;
+            };
+
+            const isInCurrentMonth = (date) => {
+                const today = new Date();
+                return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+            };
+
+            const isInCurrentYear = (date) => {
+                return date.getFullYear() === new Date().getFullYear();
+            };
+
+            const isInSpecificMonth = (date, month, year) => {
+                return date.getMonth() === month && date.getFullYear() === year;
+            };
+
+            const getWeekOfMonth = (date) => {
+                const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+                const dayOfMonth = date.getDate();
+                const firstDayOffset = firstDayOfMonth.getDay();
+                const adjustedDay = dayOfMonth + firstDayOffset - 1;
+                const weekNumber = Math.ceil(adjustedDay / 7);
+                return Math.min(weekNumber, 5);
+            };
+
+            const filteredTransactions = transactions.filter(t => {
+                const matchesSearch = t.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+                                     (t.notes && t.notes.toLowerCase().includes(filters.search.toLowerCase()));
+                const matchesType = filters.type === 'all' || t.type === filters.type;
+                const matchesCategory = filters.category === 'all' || t.category === filters.category;
+                let matchesDate = true;
+                if (filters.date !== 'all') {
+                    const transDate = new Date(t.date);
+                    const today = new Date();
+                    const currentYear = today.getFullYear();
+                    switch (filters.date) {
+                        case 'today':
+                            matchesDate = isSameDay(transDate, today);
+                            break;
+                        case 'this_week':
+                            matchesDate = isInCurrentWeek(transDate);
+                            break;
+                        case 'january':
+                            matchesDate = isInSpecificMonth(transDate, 0, currentYear);
+                            break;
+                        case 'february':
+                            matchesDate = isInSpecificMonth(transDate, 1, currentYear);
+                            break;
+                        case 'march':
+                            matchesDate = isInSpecificMonth(transDate, 2, currentYear);
+                            break;
+                        case 'april':
+                            matchesDate = isInSpecificMonth(transDate, 3, currentYear);
+                            break;
+                        case 'may':
+                            matchesDate = isInSpecificMonth(transDate, 4, currentYear);
+                            break;
+                        case 'june':
+                            matchesDate = isInSpecificMonth(transDate, 5, currentYear);
+                            break;
+                        case 'july':
+                            matchesDate = isInSpecificMonth(transDate, 6, currentYear);
+                            break;
+                        case 'august':
+                            matchesDate = isInSpecificMonth(transDate, 7, currentYear);
+                            break;
+                        case 'september':
+                            matchesDate = isInSpecificMonth(transDate, 8, currentYear);
+                            break;
+                        case 'october':
+                            matchesDate = isInSpecificMonth(transDate, 9, currentYear);
+                            break;
+                        case 'november':
+                            matchesDate = isInSpecificMonth(transDate, 10, currentYear);
+                            break;
+                        case 'december':
+                            matchesDate = isInSpecificMonth(transDate, 11, currentYear);
+                            break;
+                        case 'this_month':
+                            matchesDate = isInCurrentMonth(transDate);
+                            break;
+                        case 'this_year':
+                            matchesDate = isInCurrentYear(transDate);
+                            break;
+                        default:
+                            if (filters.date.startsWith('year_')) {
+                                const selectedYear = parseInt(filters.date.split('_')[1]);
+                                matchesDate = transDate.getFullYear() === selectedYear;
+                            }
+                            break;
+                    }
+                }
+                return matchesSearch && matchesType && matchesCategory && matchesDate;
+            });
+
+            const groupTransactionsByYearMonthWeek = (trans) => {
+                const grouped = {};
+                trans.forEach(t => {
+                    const date = new Date(t.date);
+                    const year = date.getFullYear();
+                    const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                    const week = getWeekOfMonth(date);
+                    const weekKey = `Week ${week}`;
+
+                    if (!grouped[year]) {
+                        grouped[year] = {};
+                    }
+                    if (!grouped[year][monthYear]) {
+                        grouped[year][monthYear] = {};
+                    }
+                    if (!grouped[year][monthYear][weekKey]) {
+                        grouped[year][monthYear][weekKey] = [];
+                    }
+                    grouped[year][monthYear][weekKey].push(t);
+                });
+                return grouped;
+            };
+
+            const groupedTransactions = groupTransactionsByYearMonthWeek(filteredTransactions);
+            const sortedYears = Object.keys(groupedTransactions).sort((a, b) => b - a);
+
+            const deleteTransaction = (id) => {
+                if (window.confirm('Are you sure you want to delete this transaction?')) {
+                    saveTransactions(transactions.filter(t => t.id !== id));
+                }
+            };
+
+            const editTransaction = (transaction) => {
+                window.dispatchEvent(new CustomEvent('editTransaction', { detail: transaction }));
+            };
+
+            const currentYear = new Date().getFullYear();
+            const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
+            return (
+                <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+                        <input
+                            type="text"
+                            name="search"
+                            value={filters.search}
+                            onChange={handleFilterChange}
+                            placeholder="Search transactions..."
+                            className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        />
+                        <select
+                            name="type"
+                            value={filters.type}
+                            onChange={handleFilterChange}
+                            className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="all">All Types</option>
+                            <option value="expense">Expenses</option>
+                            <option value="income">Income</option>
+                        </select>
+                        <select
+                            name="category"
+                            value={filters.category}
+                            onChange={handleFilterChange}
+                            className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="all">All Categories</option>
+                            {Object.keys(categoryIcons).map(cat => (
+                                <option key={cat} value={cat}>{categoryIcons[cat]} {cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                            ))}
+                        </select>
+                        <select
+                            name="date"
+                            value={filters.date}
+                            onChange={handleFilterChange}
+                            className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <optgroup label="General">
+                                <option value="all">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="this_week">This Week</option>
+                                <option value="this_month">This Month</option>
+                                <option value="this_year">This Year</option>
+                            </optgroup>
+                            <optgroup label="Months (2025)">
+                                <option value="january">January</option>
+                                <option value="february">February</option>
+                                <option value="march">March</option>
+                                <option value="april">April</option>
+                                <option value="may">May</option>
+                                <option value="june">June</option>
+                                <option value="july">July</option>
+                                <option value="august">August</option>
+                                <option value="september">September</option>
+                                <option value="october">October</option>
+                                <option value="november">November</option>
+                                <option value="december">December</option>
+                            </optgroup>
+                            <optgroup label="Years">
+                                {years.map(year => (
+                                    <option key={year} value={`year_${year}`}>{year}</option>
+                                ))}
+                            </optgroup>
+                        </select>
+                    </div>
+                    {filteredTransactions.length === 0 ? (
+                        <p className="text-center text-gray-500 dark:text-white">
+                            No transactions found. Add a transaction to get started!
+                        </p>
+                    ) : (
+                        <div className="space-y-8">
+                            {sortedYears.map(year => (
+                                <div key={year}>
+                                    <h2 className="text-xl font-bold mb-4 dark:text-white">{year}</h2>
+                                    {Object.keys(groupedTransactions[year]).sort((a, b) => {
+                                        const dateA = new Date(a);
+                                        const dateB = new Date(b);
+                                        return dateB - dateA;
+                                    }).map(month => (
+                                        <div key={month} className="mb-6">
+                                            <h3 className="text-lg font-semibold mb-2 dark:text-white">{month}</h3>
+                                            {Object.keys(groupedTransactions[year][month]).sort((a, b) => {
+                                                const weekA = parseInt(a.split(' ')[1]);
+                                                const weekB = parseInt(b.split(' ')[1]);
+                                                return weekA - weekB;
+                                            }).map(week => (
+                                                <div key={week} className="ml-4 mb-4">
+                                                    <h4 className="text-md font-medium mb-2 dark:text-white">{week}</h4>
+                                                    <ul className="space-y-4">
+                                                        {groupedTransactions[year][month][week].map(t => (
+                                                            <li
+                                                                key={t.id}
+                                                                className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-md shadow-sm"
+                                                            >
+                                                                <div>
+                                                                    <p className="font-medium dark:text-white">{t.name}</p>
+                                                                    <p className="text-sm text-gray-500 dark:text-white">
+                                                                        {categoryIcons[t.category]} {t.category.charAt(0).toUpperCase() + t.category.slice(1)}
+                                                                    </p>
+                                                                    <p className="text-sm text-gray-500 dark:text-white">{formatDate(t.date)}</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className={`font-semibold ${t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                                        {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                                                                    </p>
+                                                                    <div className="flex gap-2 mt-2">
+                                                                        <button
+                                                                            onClick={() => editTransaction(t)}
+                                                                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                                                                            aria-label="Edit transaction"
+                                                                        >
+                                                                            ✏️
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => deleteTransaction(t.id)}
+                                                                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                                                                            aria-label="Delete transaction"
+                                                                        >
+                                                                            🗑️
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function AnalyticsTab({ transactions, settings, formatCurrency, formatDate }) {
+            const [chartType, setChartType] = useState('pie');
+            const [chartPeriod, setChartPeriod] = useState('month');
+
+            useEffect(() => {
+                const chartCanvas = document.getElementById('expense-chart');
+                const categoryStats = document.getElementById('category-stats');
+
+                const filterTransactionsByPeriod = (trans, period) => {
+                    const today = new Date();
+                    return trans.filter(t => {
+                        const transDate = new Date(t.date);
+                        if (period === 'week') {
+                            const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+                            return transDate >= firstDayOfWeek;
+                        } else if (period === 'month') {
+                            return transDate.getMonth() === today.getMonth() && transDate.getFullYear() === today.getFullYear();
+                        } else if (period === 'year') {
+                            return transDate.getFullYear() === today.getFullYear();
+                        }
+                        return true;
+                    });
+                };
+
+                let filteredTransactions = filterTransactionsByPeriod(transactions, chartPeriod);
+                const expenseTransactions = filteredTransactions.filter(t => t.type === 'expense');
+
+                const categories = {};
+                expenseTransactions.forEach(t => {
+                    categories[t.category] = (categories[t.category] || 0) + t.amount;
+                });
+
+                const labels = Object.keys(categories).map(cat => (categoryIcons[cat] || '📌') + ' ' + (cat.charAt(0).toUpperCase() + cat.slice(1)));
+                const data = Object.values(categories);
+                const backgroundColors = Object.keys(categories).map(cat => categoryColors[cat] || '#b2bec3');
+
+                if (window.chart) window.chart.destroy();
+
+                const chartTextColor = document.documentElement.classList.contains('dark') ? '#ffffff' : '#666';
+
+                if (chartType === 'pie') {
+                    window.chart = new Chart(chartCanvas, {
+                        type: 'pie',
+                        data: {
+                            labels,
+                            datasets: [{ data, backgroundColor: backgroundColors, borderWidth: 1 }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { position: 'right', labels: { color: chartTextColor } } }
+                        }
+                    });
+                } else if (chartType === 'bar') {
+                    window.chart = new Chart(chartCanvas, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [{ label: 'Expenses', data, backgroundColor: backgroundColors, borderWidth: 1 }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { beginAtZero: true, ticks: { color: chartTextColor } },
+                                x: { ticks: { color: chartTextColor } }
+                            }
+                        }
+                    });
+                } else if (chartType === 'line') {
+                    const dateGroups = {};
+                    filteredTransactions.forEach(t => {
+                        const date = t.date;
+                        if (!dateGroups[date]) dateGroups[date] = { income: 0, expense: 0 };
+                        dateGroups[date][t.type] += t.amount;
+                    });
+                    const sortedDates = Object.keys(dateGroups).sort((a, b) => new Date(a) - new Date(b));
+                    window.chart = new Chart(chartCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: sortedDates.map(date => formatDate(date)),
+                            datasets: [
+                                {
+                                    label: 'Income',
+                                    data: sortedDates.map(date => dateGroups[date].income),
+                                    borderColor: 'rgb(46, 204, 113)',
+                                    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                                    tension: 0.1,
+                                    fill: true
+                                },
+                                {
+                                    label: 'Expenses',
+                                    data: sortedDates.map(date => dateGroups[date].expense),
+                                    borderColor: 'rgb(231, 76, 60)',
+                                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                                    tension: 0.1,
+                                    fill: true
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { beginAtZero: true, ticks: { color: chartTextColor } },
+                                x: { ticks: { color: chartTextColor } }
+                            },
+                            plugins: { legend: { labels: { color: chartTextColor } } }
+                        }
+                    });
+                }
+
+                categoryStats.innerHTML = '';
+                Object.keys(categories).forEach(category => {
+                    const amount = categories[category];
+                    const totalExpenses = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
+                    const percentage = totalExpenses > 0 ? ((amount / totalExpenses) * 100).toFixed(1) : 0;
+                    const categoryEl = document.createElement('div');
+                    categoryEl.className = 'bg-gray-50 dark:bg-gray-700 p-4 rounded-md shadow-sm text-center';
+                    categoryEl.innerHTML = `
+                        <div className="font-medium dark:text-white">${categoryIcons[category] || '📌'} ${category.charAt(0).toUpperCase() + category.slice(1)}</div>
+                        <div className="text-indigo-600 dark:text-indigo-400">${formatCurrency(amount)} (${percentage}%)</div>
+                    `;
+                    categoryStats.appendChild(categoryEl);
+                });
+            }, [transactions, chartType, chartPeriod]);
+
+            return (
+                <div>
+                    <div className="flex gap-4 mb-6">
+                        <select
+                            value={chartType}
+                            onChange={(e) => setChartType(e.target.value)}
+                            className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="pie">Pie Chart</option>
+                            <option value="bar">Bar Chart</option>
+                            <option value="line">Line Chart</option>
+                        </select>
+                        <select
+                            value={chartPeriod}
+                            onChange={(e) => setChartPeriod(e.target.value)}
+                            className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
+                            <option value="all">All Time</option>
+                        </select>
+                    </div>
+                    <div className="h-80 mb-6">
+                        <canvas id="expense-chart"></canvas>
+                    </div>
+                    <h3 className="text-lg font-semibold mb-4 dark:text-white">Spending by Category</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" id="category-stats"></div>
+                </div>
+            );
+        }
+
+        function BudgetTab({ transactions, settings, formatCurrency }) {
+            const currentMonthExpenses = transactions
+                .filter(t => t.type === 'expense' && new Date(t.date).getMonth() === new Date().getMonth())
+                .reduce((sum, t) => sum + t.amount, 0);
+
+            const categories = {};
+            transactions
+                .filter(t => t.type === 'expense' && new Date(t.date).getMonth() === new Date().getMonth())
+                .forEach(t => {
+                    categories[t.category] = (categories[t.category] || 0) + t.amount;
+                });
+
+            const totalExpenses = Object.values(categories).reduce((sum, amount) => sum + amount, 0);
+            const percentage = settings.budget > 0 ? Math.min((currentMonthExpenses / settings.budget) * 100, 100) : 0;
+            const progressColor = percentage >= 90 ? 'bg-red-500' : percentage >= 70 ? 'bg-yellow-500' : 'bg-green-500';
+
+            return (
+                <div>
+                    <h3 className="text-lg font-semibold mb-4 dark:text-white">Budget Status</h3>
+                    <div className="bg-gray-200 dark:bg-gray-700 rounded-md h-6 mb-2 overflow-hidden">
+                        <div
+                            className={`${progressColor} h-full rounded-md transition-all duration-300`}
+                            style={{ width: `${percentage}%` }}
+                        ></div>
+                    </div>
+                    <div className="flex justify-between text-sm mb-6 dark:text-white">
+                        <span>{formatCurrency(currentMonthExpenses)} spent</span>
+                        <span>Budget: {formatCurrency(settings.budget)}</span>
+                    </div>
+                    <h3 className="text-lg font-semibold mb-4 dark:text-white">Category Budgets</h3>
+                    {settings.budget <= 0 ? (
+                        <p className="text-center text-gray-500 dark:text-white">
+                            Set a monthly budget to enable category budgeting.
+                        </p>
+                    ) : (
+                        <div className="space-y-4">
+                            {Object.keys(categories).map(category => {
+                                const amount = categories[category];
+                                const percentage = totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0;
+                                const suggestedBudget = settings.budget * (percentage / 100);
+                                return (
+                                    <div key={category} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md shadow-sm">
+                                        <div className="flex justify-between mb-2 dark:text-white">
+                                            <span className="font-medium">
+                                                {categoryIcons[category]} {category.charAt(0).toUpperCase() + category.slice(1)}
+                                            </span>
+                                            <span>{formatCurrency(amount)} spent</span>
+                                        </div>
+                                        <div className="bg-gray-200 dark:bg-gray-600 rounded-md h-4 overflow-hidden">
+                                            <div
+                                                className="bg-indigo-600 dark:bg-indigo-500 h-full rounded-md"
+                                                style={{ width: `${percentage}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="flex justify-between text-sm mt-1 dark:text-white">
+                                            <span>Suggested: {formatCurrency(suggestedBudget)}</span>
+                                            <span>{percentage.toFixed(1)}% of total</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

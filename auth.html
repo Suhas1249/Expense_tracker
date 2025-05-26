@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker - Login / Signup</title>
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --secondary-color: #827ec6;
+            --red: #e74c3c;
+            --green: #2ecc71;
+            --dark: #2d3436;
+            --light: #f5f6fa;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #7493b1;
+            color: var(--dark);
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .auth-container {
+            background-color: rgb(217, 216, 218);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .auth-container h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .auth-container h1 svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            color: var(--dark);
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .error-message, .success-message {
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .error-message {
+            color: var(--red);
+        }
+
+        .success-message {
+            color: var(--green);
+        }
+
+        .toggle-link {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .toggle-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .toggle-link a:hover {
+            color: var(--secondary-color);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: rgb(217, 216, 218);
+            padding: 20px;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--dark);
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h1>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+            </svg>
+            Expense Tracker
+        </h1>
+        <div class="tabs">
+            <div class="tab active" data-tab="login">Login</div>
+            <div class="tab" data-tab="signup">Signup</div>
+        </div>
+        <div class="tab-content active" id="login-tab">
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-gmail">Email</label>
+                    <input type="email" id="login-gmail" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password" required>
+                </div>
+                <button type="submit">Login</button>
+            </form>
+            <div class="error-message" id="login-error-message">
+                Invalid email or password
+            </div>
+            <div class="toggle-link">
+                <a href="#" id="forgot-password">Forgot Password?</a>
+            </div>
+            <div class="toggle-link">
+                <a href="#" id="switch-to-signup">Don't have an account? Sign up</a>
+            </div>
+        </div>
+        <div class="tab-content" id="signup-tab">
+            <form id="signup-form">
+                <div class="form-group">
+                    <label for="signup-gmail">Email</label>
+                    <input type="email" id="signup-gmail" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" placeholder="Choose a password" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-confirm-password">Confirm Password</label>
+                    <input type="password" id="signup-confirm-password" placeholder="Confirm password" required>
+                </div>
+                <button type="submit">Sign Up</button>
+            </form>
+            <div class="error-message" id="signup-error-message"></div>
+            <div class="success-message" id="signup-success-message">
+                Account created successfully! Please log in.
+            </div>
+            <div class="toggle-link">
+                <a href="#" id="switch-to-login">Already have an account? Log in</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div class="modal" id="forgot-password-modal">
+        <div class="modal-content">
+            <span class="close-btn" id="close-modal">&times;</span>
+            <h2>Reset Password</h2>
+            <form id="reset-password-form">
+                <div class="form-group">
+                    <label for="reset-gmail">Email</label>
+                    <input type="email" id="reset-gmail" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="reset-password">New Password</label>
+                    <input type="password" id="reset-password" placeholder="Enter new password" required>
+                </div>
+                <div class="form-group">
+                    <label for="reset-confirm-password">Confirm New Password</label>
+                    <input type="password" id="reset-confirm-password" placeholder="Confirm new password" required>
+                </div>
+                <button type="submit">Reset Password</button>
+            </form>
+            <div class="error-message" id="reset-error-message"></div>
+            <div class="success-message" id="reset-success-message">
+                Password reset successfully! Please log in.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            loadUsers();
+        });
+
+        let users = [];
+
+        function loadUsers() {
+            const storedUsers = localStorage.getItem('users');
+            if (storedUsers) {
+                users = JSON.parse(storedUsers);
+            }
+        }
+
+        function saveUsers() {
+            localStorage.setItem('users', JSON.stringify(users));
+        }
+
+        function setupEventListeners() {
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('signup-form').addEventListener('submit', handleSignup);
+            document.getElementById('reset-password-form').addEventListener('submit', handleResetPassword);
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+                    document.getElementById('login-error-message').style.display = 'none';
+                    document.getElementById('signup-error-message').style.display = 'none';
+                    document.getElementById('signup-success-message').style.display = 'none';
+                    document.getElementById('forgot-password-modal').style.display = 'none';
+                });
+            });
+
+            document.getElementById('switch-to-signup').addEventListener('click', (e) => {
+                e.preventDefault();
+                switchTab('signup');
+            });
+
+            document.getElementById('switch-to-login').addEventListener('click', (e) => {
+                e.preventDefault();
+                switchTab('login');
+            });
+
+            document.getElementById('forgot-password').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('forgot-password-modal').style.display = 'flex';
+            });
+
+            document.getElementById('close-modal').addEventListener('click', () => {
+                document.getElementById('forgot-password-modal').style.display = 'none';
+                document.getElementById('reset-password-form').reset();
+                document.getElementById('reset-error-message').style.display = 'none';
+                document.getElementById('reset-success-message').style.display = 'none';
+            });
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            document.getElementById('login-error-message').style.display = 'none';
+            document.getElementById('signup-error-message').style.display = 'none';
+            document.getElementById('signup-success-message').style.display = 'none';
+            document.getElementById('forgot-password-modal').style.display = 'none';
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-gmail').value.trim().toLowerCase();
+            const password = document.getElementById('login-password').value;
+            const errorMessage = document.getElementById('login-error-message');
+
+            if (!email.endsWith('@gmail.com')) {
+                errorMessage.textContent = 'Please enter a valid Gmail address';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            const user = users.find(u => u.gmail === email && u.password === password);
+            if (user) {
+                localStorage.setItem('isLoggedIn', 'true');
+                localStorage.setItem('currentUser', email);
+                window.location.href = 'dashboard.html';
+            } else {
+                errorMessage.textContent = 'Invalid email or password';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+            }
+        }
+
+        function handleSignup(e) {
+            e.preventDefault();
+            const email = document.getElementById('signup-gmail').value.trim().toLowerCase();
+            const password = document.getElementById('signup-password').value;
+            const confirmPassword = document.getElementById('signup-confirm-password').value;
+            const errorMessage = document.getElementById('signup-error-message');
+            const successMessage = document.getElementById('signup-success-message');
+
+            if (!email.endsWith('@gmail.com')) {
+                errorMessage.textContent = 'Please enter a valid Gmail address';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            if (users.find(u => u.gmail === email)) {
+                errorMessage.textContent = 'This email is already registered';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                errorMessage.textContent = 'Passwords do not match';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            if (password.length < 6) {
+                errorMessage.textContent = 'Password must be at least 6 characters';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            users.push({ gmail: email, password });
+            saveUsers();
+            document.getElementById('signup-form').reset();
+            successMessage.style.display = 'block';
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+                switchTab('login');
+            }, 3000);
+        }
+
+        function handleResetPassword(e) {
+            e.preventDefault();
+            const email = document.getElementById('reset-gmail').value.trim().toLowerCase();
+            const newPassword = document.getElementById('reset-password').value;
+            const confirmPassword = document.getElementById('reset-confirm-password').value;
+            const errorMessage = document.getElementById('reset-error-message');
+            const successMessage = document.getElementById('reset-success-message');
+
+            if (!email.endsWith('@gmail.com')) {
+                errorMessage.textContent = 'Please enter a valid Gmail address';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            const userIndex = users.findIndex(u => u.gmail === email);
+            if (userIndex === -1) {
+                errorMessage.textContent = 'Email not found';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                errorMessage.textContent = 'Passwords do not match';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                errorMessage.textContent = 'Password must be at least 6 characters';
+                errorMessage.style.display = 'block';
+                setTimeout(() => errorMessage.style.display = 'none', 3000);
+                return;
+            }
+
+            users[userIndex].password = newPassword;
+            saveUsers();
+            document.getElementById('reset-password-form').reset();
+            successMessage.style.display = 'block';
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+                document.getElementById('forgot-password-modal').style.display = 'none';
+                switchTab('login');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
